@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>e86 簡易シミュレーター</title>
+<style>
+:root{--bg:#0d0f14;--panel:#1a1d26;--tx:#f1f3f6;--sub:#9aa4b2;--line:#2d3340;--red:#ff3b30;--blue:#35a7ff;--gold:#ffd23f;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#e6e9ee;--panel:#fff;--tx:#1a1f26;--sub:#5d6772;--line:#c9cfd8}}
+:root[data-theme="light"]{--bg:#e6e9ee;--panel:#fff;--tx:#1a1f26;--sub:#5d6772;--line:#c9cfd8}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+main{max-width:480px;margin:0 auto;padding:12px}
+h1{font-size:16px;margin:2px 0 8px;color:var(--sub);font-weight:600}
+.lcd{border:4px solid #8a8f9a;border-radius:14px;padding:12px;color:#fff;box-shadow:0 0 0 3px #2a2d35,inset 0 0 30px rgba(0,0,0,.5);transition:background .3s}
+.lcd[data-mode=normal]{background:linear-gradient(#0c1634,#1b2f6b)}
+.lcd[data-mode=chal]{background:linear-gradient(#4a2a00,#c27a00)}
+.lcd[data-mode=rush]{background:linear-gradient(#3c0710,#c4202c)}
+.lcd[data-mode=judge]{background:linear-gradient(#1f0b40,#7a35d6)}
+.lcd[data-mode=jm]{background:linear-gradient(#06302e,#13a08f)}
+.lcd[data-mode=kiryu]{background:linear-gradient(#5a3d00,#f2b820)}
+.banner{text-align:center;font-weight:900;font-size:22px;letter-spacing:.04em;text-shadow:0 2px 6px #000}
+.tot{width:fit-content;margin:6px auto 0;padding:2px 14px;background:rgba(0,0,0,.5);border-radius:8px;font-weight:800;color:var(--gold);text-shadow:0 2px 6px #000}
+.tot b{font:900 30px ui-monospace,Menlo,monospace;margin:0 3px;font-variant-numeric:tabular-nums}
+.msg{text-align:center;font-weight:700;font-size:17px;min-height:30px;margin:6px 0 10px;color:var(--gold);text-shadow:0 1px 4px #000}
+.reels{display:flex;justify-content:center;gap:10px;margin:6px 0 4px}
+.reels b{width:64px;height:84px;display:grid;place-items:center;font-size:56px;background:#fff;color:#111;border-radius:8px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.15)}
+.reels.win b{background:var(--gold);color:#c00}
+.side{background:rgba(0,0,0,.45);border-radius:10px;padding:8px 10px;margin:8px 0}
+.top{display:flex;justify-content:space-between;align-items:baseline}
+.top .l{font-weight:800;font-size:15px}
+.top .n{font-size:44px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 2px 6px #000}
+.side.e .l,.side.e .n{color:#ff6b61}
+.side.m .l,.side.m .n{color:#6cc0ff}
+.blocks{display:flex;gap:6px;margin-top:6px}
+.blk{flex:1;height:30px;border:3px solid currentColor;box-sizing:border-box}
+.e .blk{color:#ff6b61;border-radius:4px}
+.m .blk{color:#6cc0ff;border-radius:50%}
+.blk.on{background:currentColor;box-shadow:0 0 10px currentColor}
+.blk.off{opacity:.25;border-style:dashed}
+.lcd.drawing .side{animation:scan .25s infinite alternate}
+@keyframes scan{from{box-shadow:0 0 0 rgba(255,255,255,0)}to{box-shadow:0 0 16px rgba(255,255,255,.7)}}
+.lcd.cue-enemy{animation:cueR .4s 3}
+.lcd.cue-self{animation:cueB .4s 3}
+.lcd.cue-one{animation:cueG .3s 5}
+.lcd.cue-enemy .msg{color:#ff5a50}.lcd.cue-self .msg{color:#7fd0ff}
+@keyframes cueR{50%{box-shadow:0 0 0 3px #2a2d35,inset 0 0 90px rgba(255,0,0,.95)}}
+@keyframes cueB{50%{box-shadow:0 0 0 3px #2a2d35,inset 0 0 90px rgba(40,150,255,.95)}}
+@keyframes cueG{50%{box-shadow:0 0 0 3px #2a2d35,inset 0 0 100px rgba(255,210,60,1)}}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0 4px}
+.modes button.on{background:var(--red);border-color:var(--red);color:#fff}
+.mn{font-size:12px;color:var(--sub);text-align:center;min-height:36px}
+.side.jm .l,.side.jm .n{color:var(--gold)}
+.gauge{height:14px;background:rgba(255,255,255,.2);border-radius:7px;margin-top:8px;overflow:hidden}
+.gauge i{display:block;height:100%;width:55%;background:var(--gold)}
+.lcd.hurt{animation:hurt .6s}
+@keyframes hurt{0%,100%{transform:none}10%{transform:translate(-9px,3px)}20%{transform:translate(9px,-3px)}30%{transform:translate(-7px,2px)}40%{transform:translate(7px,-2px)}50%{transform:translate(-3px,1px);box-shadow:0 0 0 3px #2a2d35,inset 0 0 110px rgba(255,0,0,.95)}}
+.lcd{position:relative;overflow:hidden}
+.fx{position:absolute;left:0;right:0;top:34%;text-align:center;font:900 54px/1 "Hiragino Sans","Noto Sans JP",sans-serif;color:#ff3b30;text-shadow:0 0 18px #000,0 0 6px #fff;opacity:0;pointer-events:none;z-index:2}
+.fx.go{animation:fxA .9s}
+@keyframes fxA{0%{opacity:0;transform:scale(2.4)}20%{opacity:1;transform:scale(1)}70%{opacity:1}100%{opacity:0;transform:translateY(-24px)}}
+.blk.lost{animation:lostA .9s}
+@keyframes lostA{0%{background:#fff;transform:scale(1.6) rotate(10deg);opacity:1}40%{background:#ff3b30;transform:scale(1.25) rotate(-10deg)}100%{transform:none}}
+.flash{animation:fl .5s}
+@keyframes fl{0%{filter:brightness(3);transform:scale(1.04)}100%{filter:none;transform:none}}
+@media(prefers-reduced-motion:reduce){.flash,.lcd.drawing .side,.lcd[class*=cue-],.lcd.hurt,.fx.go,.blk.lost{animation:none}}
+.shot{display:block;margin:14px auto 10px;width:132px;height:132px;border-radius:50%;border:6px solid #b8bcc6;background:radial-gradient(circle at 35% 30%,#ff7a70,#c81e14);color:#fff;font:900 20px/1.2 inherit;box-shadow:0 6px 0 #7a110b}
+.shot:active{transform:translateY(4px);box-shadow:0 2px 0 #7a110b}
+.sub{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+button.s{font:inherit;font-weight:700;font-size:13px;padding:10px 4px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--tx)}
+button:disabled{opacity:.35}
+button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.data{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.data div{background:#000;border:2px solid #444;border-radius:6px;padding:6px 8px}
+.data small{display:block;color:#ff9f0a;font-size:11px}
+.data b{color:#7dff7d;font:700 18px/1.2 ui-monospace,Menlo,monospace}
+#log{list-style:none;margin:0;padding:0;font-size:13px;max-height:220px;overflow-y:auto}
+#log li{padding:5px 0;border-bottom:1px solid var(--line)}
+#log .big{color:#ff6b61;font-weight:700}
+.note{color:var(--sub);font-size:11px;margin:10px 0 0}
+.head{display:flex;justify-content:space-between;align-items:center}
+.head h1{margin:0}
+#b6{padding:6px 10px;font-size:12px}
+.hist{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#000;border:2px solid #444;border-radius:8px;padding:6px 8px;margin:8px 0 10px;min-height:34px}
+.hist small{color:#ff9f0a;font-size:11px;margin-right:2px}
+.hist span{color:#7dff7d;font:700 15px ui-monospace,Menlo,monospace;border:1px solid #2f6b2f;border-radius:4px;padding:1px 6px}
+.hist span:first-of-type{font-size:20px;background:#164a16;border-color:#7dff7d}
+</style></head><body><main>
+<div class="head"><h1>e86 簡易シミュレーター</h1><button class="s" id="b6">音 ON</button></div>
+<div class="hist" id="hl"></div>
+<div class="lcd" id="lcd" data-mode="normal">
+<div class="fx" id="fx"></div>
+<div class="banner" id="ph"></div>
+<div class="tot" id="tot" style="display:none">獲得出玉 <b id="tv">0</b>個</div>
+<div class="msg" id="ms"></div>
+<div class="reels" id="rl"><b>-</b><b>-</b><b>-</b></div>
+<div class="side jm" id="sj" style="display:none"><div class="top"><span class="l">突破ジャッジメント 突破率</span><span class="n">55%</span></div><div class="gauge"><i></i></div></div>
+<div class="side e" id="se"><div class="top"><span class="l">敵 レギオン残機</span><span class="n" id="en">-</span></div><div class="blocks" id="ep"></div></div>
+<div class="side m" id="sm"><div class="top"><span class="l">味方 ジャガーノート残機</span><span class="n" id="an">-</span></div><div class="blocks" id="ap"></div></div>
+</div>
+<div class="modes"><button class="s on" data-m="none">演出なし</button><button class="s" data-m="enemy">敵攻撃</button><button class="s" data-m="self">自分攻撃</button><button class="s" data-m="vibe">バイブ</button></div>
+<div class="mn" id="mn">演出モード:なし(結果は抽選後にわかります)</div>
+<button class="shot" id="b0">打ち出し<br>1回転</button>
+<div class="sub">
+<button class="s" id="b1">10回転</button>
+<button class="s" id="b2">当たるまで</button>
+<button class="s" id="b5">バトル自動</button>
+</div>
+<div class="data">
+<div><small>総回転</small><b id="sp">0</b></div>
+<div><small>初当り</small><b id="ht">0</b></div>
+<div><small>ハマり</small><b id="cu">0</b></div>
+<div><small>出玉</small><b id="bl">0</b></div>
+<div><small>収支(円)</small><b id="pl">0</b></div>
+<div><small>最高連チャン</small><b id="mx">0</b></div>
+</div>
+<ul id="log"></ul>
+<button class="s" id="b4" style="width:100%;margin-top:10px">リセット</button>
+<p class="note">公開スペックをもとにした非公式の簡易版です。1000円=18回転、1玉4円換算。</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const P={blank:1/3.5,one:1/35,hit:1/239.1,enter:.55,a1:.443,a2:.46,lj:.29,kir:.3,kirc:.7};
+let S,busy=false;
+function init(){S={tot:0,hl:[],snd:"",sp:0,ht:0,iv:0,bl:0,cur:0,mx:0,mode:"normal",e:0,m:0,emax:0,n:0,from:"",msg:"打ち出しボタンで回転スタート",dg:[null,null,null],win:false,last:""};$("log").innerHTML="";render();}
+function log(t,big){const li=document.createElement("li");li.textContent=t;if(big)li.className="big";$("log").prepend(li);}
+function gain(n,t,big){S.bl+=n;S.tot+=n;log(t,big);}
+function startChal(){S.mode="chal";S.e=5;S.emax=5;S.m=5;log("突破チャレンジ突入(敵5・味方5)");}
+function startRound(){S.mode="rush";S.e=3;S.emax=3;S.m=5;}
+function endRush(){S.mx=Math.max(S.mx,S.n);log(`RUSH終了(${S.n}連 合計${S.tot}個)`);S.mode="normal";S.e=S.m=S.emax=0;S.msg="通常時に戻りました";}
+function pickK(){const r=Math.random();return r<.256?7500:r<.349?6000:r<.544?4500:r<.882?3000:2700;}
+function rushWin(){
+S.n++;
+if(Math.random()<.7){
+gain(1500,`虹V ${S.n}連目 +1500個`,true);S.rm="虹V +1500個";
+if(Math.random()<P.kir){S.mode="kiryu";S.kt=pickK();S.kg=0;log("キリヤ血戦突入",true);S.rm+=" キリヤ血戦突入!";}
+else startRound();
+}else{
+gain(300,`金V ${S.n}連目 +300個`,true);S.rm="金V +300個";startRound();}}
+function digits(hit){
+if(hit)return[8,8,8];
+const d=[0,0,0].map(()=>Math.floor(Math.random()*9)+1);
+if(d[0]===d[1]&&d[1]===d[2])d[2]=d[2]%9+1;
+return d;}
+function step(){
+const s=S,r=Math.random();s.last="";s.snd="";s.win=false;
+if(s.mode==="normal"){
+s.sp++;s.cur++;s.iv+=1000/18;
+if(r<P.hit){
+s.dg=digits(true);s.win=true;
+s.ht++;s.tot=0;gain(300,`初当り#${s.ht}(${s.cur}回転目) 86BONUS +300個`);s.msg="大当り!86BONUS";s.hl.unshift(s.cur);s.cur=0;
+s.mode="jm";log("86BONUS終了 → 突破ジャッジメントへ");s.msg+=" → 突破ジャッジメント";
+}else{s.dg=digits(false);s.msg=`${s.cur}回転目 ハズレ`;}
+}else if(s.mode==="chal"||s.mode==="rush"){
+const o=s.pre||roll();s.pre=null;
+if(o==="one"){s.e=0;s.last="e";s.snd="kill";s.msg="一撃一掃フラグ!! 敵が全滅";}
+else if(o==="blank"){s.msg="ハズレフラグ 変化なし";}
+else if(o==="atk"){s.e--;s.last="e";s.snd=s.e===0?"kill":"hit";s.msg="攻撃フラグ! 敵 -1";}
+else{s.m--;s.last="m";s.snd="dmg";s.hurt=true;s.msg="被弾フラグ… 味方 -1";}
+if(s.e===0){
+if(s.mode==="chal"){log("突破チャレンジ成功");s.n=0;startRound();s.msg="突破成功! RUSH突入";}
+else{rushWin();s.msg="敵を殲滅! "+s.rm;}
+}else if(s.m===0){s.from=s.mode;s.mode="judge";s.msg="味方全滅… LAST JUDGEへ";}
+}else if(s.mode==="judge"){
+if(r<P.lj){
+log("LAST JUDGE成功",true);s.snd="kill";
+if(s.from==="chal"){s.n=0;startRound();s.msg="引き戻し成功! RUSH突入";}
+else{rushWin();s.msg="引き戻し成功! "+s.rm;}
+}else{
+log("LAST JUDGE失敗");s.snd="lose";
+if(s.from==="rush")endRush();else{s.mode="normal";s.e=s.m=s.emax=0;s.msg="突破失敗… 通常へ";}
+}
+}else if(s.mode==="jm"){
+if(r<P.enter){log("突破ジャッジメント成功(55%)",true);startChal();s.snd="kill";s.msg="ジャッジメント成功! 突破チャレンジ突入";}
+else{log("突破ジャッジメント失敗");s.mode="normal";s.snd="lose";s.msg="ジャッジメント失敗… 通常へ";}
+}else if(s.mode==="kiryu"){
+const g=Math.min(1500,s.kt);s.kt-=g;s.kg+=g;gain(g,`キリヤ血戦 上乗せ +${g}個`,true);s.msg=`上乗せ +${g}個`;
+if(s.kt<=0){startRound();log(`キリヤ血戦終了(合計 ${s.kg}個)`);s.msg=`血戦終了 合計 ${s.kg}個。RUSH継続`;}
+}
+}
+let ac=null,mg=null,snd=true;
+function boot(){if(!ac){ac=new(window.AudioContext||window.webkitAudioContext)();const c=ac.createDynamicsCompressor();c.threshold.value=-14;c.ratio.value=8;mg=ac.createGain();mg.gain.value=1.4;mg.connect(c);c.connect(ac.destination);const d=ac.createDelay();d.delayTime.value=.16;const fb=ac.createGain();fb.gain.value=.35;d.connect(fb);fb.connect(d);const w=ac.createGain();w.gain.value=.4;mg.connect(d);d.connect(w);w.connect(c);}if(ac.state==="suspended")ac.resume();}
+function curve(k){const n=256,a=new Float32Array(n);for(let i=0;i<n;i++){const x=i*2/n-1;a[i]=(1+k)*x/(1+k*Math.abs(x));}return a;}
+function osc(type,f1,f2,t,d,v,dist){const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(f1,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);let n=o;if(dist){const w=ac.createWaveShaper();w.curve=curve(dist);o.connect(w);n=w;}n.connect(g);g.connect(mg);o.start(t);o.stop(t+d);}
+function noise(t,d,v,type,f){const len=Math.floor(ac.sampleRate*d),b=ac.createBuffer(1,len,ac.sampleRate),a=b.getChannelData(0);for(let i=0;i<len;i++)a[i]=Math.random()*2-1;const s=ac.createBufferSource();s.buffer=b;const fl=ac.createBiquadFilter();fl.type=type;fl.frequency.value=f;const g=ac.createGain();g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);s.connect(fl);fl.connect(g);g.connect(mg);s.start(t);}
+function sfx(k){if(!snd)return;try{boot();const t=ac.currentTime;
+if(k==="warn"){osc("sawtooth",150,70,t,.45,.4,60);osc("sawtooth",120,55,t+.2,.5,.4,60);osc("sine",70,28,t,.8,1,0);noise(t,.4,.4,"lowpass",350);}
+else if(k==="cues"){osc("square",660,0,t,.14,.2,30);osc("square",990,0,t+.1,.35,.2,30);osc("sine",110,40,t,.6,.9,0);}
+else if(k==="tick"){osc("sine",260,0,t,.05,.12,0);}
+else if(k==="hit"){osc("sine",170,38,t,.6,1,0);osc("sine",85,30,t+.03,.8,.9,0);noise(t,.14,.5,"bandpass",2200);noise(t,.4,.4,"lowpass",250);osc("square",990,1320,t,.2,.18,30);}
+else if(k==="kill"){osc("sine",130,32,t,.9,1.1,0);osc("sine",130,32,t+.16,.9,1,0);osc("sine",60,30,t,1.6,.9,0);noise(t,.9,.45,"highpass",3000);[262,330,392,523].forEach((f,i)=>{osc("sawtooth",f,0,t+.1+i*.12,1.1,.14,40);osc("sawtooth",f*1.01,0,t+.1+i*.12,1.1,.1,40);});osc("sawtooth",65,0,t,1.6,.35,60);}
+else if(k==="dmg"){osc("sawtooth",110,34,t,.8,.5,60);noise(t,.45,.6,"lowpass",450);osc("sine",90,28,t,.8,1,0);}
+else if(k==="lose"){osc("sawtooth",220,45,t,2,.35,80);osc("sawtooth",165,38,t+.05,2,.3,80);osc("sine",55,24,t,2.2,1,0);osc("sine",70,26,t+.5,1.4,.9,0);noise(t,1,.5,"lowpass",250);}
+}catch(e){}}
+let cm="none";
+function roll(){const m=S.mode;if(m==="rush"&&Math.random()<P.one)return"one";if(Math.random()<P.blank)return"blank";return Math.random()<(m==="chal"?P.a1:P.a2)?"atk":"dmg";}
+function cueFor(o){if(!o)return"";
+if(cm==="enemy"&&o==="dmg")return"enemy";
+if(cm==="self"&&o==="atk")return"self";
+if(cm==="self"&&o==="one")return"one";
+if(cm==="vibe"&&o==="atk")return"vibe";
+if(cm==="vibe"&&o==="one")return"vibe1";
+return"";}
+async function pull(){
+S.pre=(S.mode==="chal"||S.mode==="rush")?roll():null;
+await draw(cueFor(S.pre));step();}
+async function draw(cue){
+const m=S.mode,dur=m==="judge"||m==="jm"?1500:m==="kiryu"?700:1000,t0=performance.now(),L=$("lcd");let i=0;
+L.classList.add("drawing");
+const tag={enemy:"⚠ 敵の攻撃! ",self:"◎ 味方の攻撃! ",one:"★ 一撃一掃!! "}[cue]||"";
+if(cue==="enemy"){L.classList.add("cue-enemy");sfx("warn");}
+else if(cue==="self"||cue==="one"){L.classList.add("cue-"+cue);sfx("cues");}
+else if(cue==="vibe"||cue==="vibe1"){try{if(navigator.vibrate)navigator.vibrate(cue==="vibe1"?[300,100,300,100,700]:[250,90,250]);}catch(e){}}
+if(m==="normal"){$("rl").style.display="flex";$("rl").className="reels";}
+while(performance.now()-t0<dur){
+if(m==="normal")$("rl").innerHTML=[0,0,0].map(()=>`<b>${1+Math.floor(Math.random()*9)}</b>`).join("");
+$("ms").textContent=tag+(m==="normal"?"図柄変動中":m==="jm"?"ジャッジメント抽選中":m==="judge"?"LAST JUDGE 抽選中":m==="kiryu"?"血戦":"フラグ抽選中")+".".repeat(i%4);
+i++;sfx("tick");await sleep(90);}
+L.classList.remove("drawing","cue-enemy","cue-self","cue-one");}
+function hurt(){const L=$("lcd");L.classList.remove("hurt");void L.offsetWidth;L.classList.add("hurt");const x=$("fx");x.textContent="味方 −1";x.classList.remove("go");void x.offsetWidth;x.classList.add("go");if(cm==="vibe"){try{navigator.vibrate&&navigator.vibrate(450);}catch(e){}}}
+$("fx").addEventListener("animationend",()=>$("fx").classList.remove("go"));
+function blocks(n,max){return Array.from({length:max},(_,i)=>`<span class="blk ${i<n?"on":"off"}"></span>`).join("");}
+function pop(id){const el=$(id);el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");}
+function render(){
+const s=S,f=n=>Math.round(n).toLocaleString();
+$("sp").textContent=f(s.sp);$("ht").textContent=s.ht;$("cu").textContent=s.cur;
+$("bl").textContent=f(s.bl);$("pl").textContent=f(s.bl*4-s.iv);$("mx").textContent=s.mx;
+const names={jm:"突破ジャッジメント",normal:"通常時",chal:"突破チャレンジ",rush:`Operation86 ${s.n+1}連目`,judge:"LAST JUDGE 1回転",kiryu:"キリヤ血戦"};
+$("lcd").dataset.mode=s.mode;$("tot").style.display=s.mode==="normal"?"none":"block";$("tv").textContent=f(s.tot);$("ph").textContent=names[s.mode];$("ms").textContent=s.msg;
+const bat=s.emax>0;
+$("rl").style.display=bat||s.mode==="kiryu"||s.mode==="jm"?"none":"flex";
+$("sj").style.display=s.mode==="jm"?"block":"none";
+$("rl").className="reels"+(s.win?" win":"");
+$("rl").innerHTML=s.dg.map(d=>`<b>${d===null?"-":d}</b>`).join("");
+$("se").style.display=$("sm").style.display=bat?"block":"none";
+$("en").textContent=s.e;$("an").textContent=s.m;
+$("ep").innerHTML=blocks(s.e,s.emax);$("ap").innerHTML=blocks(s.m,5);
+if(s.last==="e")pop("se");if(s.last==="m"){pop("sm");const k=$("ap").children[s.m];if(k)k.classList.add("lost");}
+if(s.snd){sfx(s.snd);s.snd="";}
+if(s.hurt){s.hurt=false;hurt();}
+$("hl").innerHTML="<small>初当り回転数</small>"+(s.hl.length?s.hl.slice(0,6).map(n=>`<span>${n}</span>`).join(""):"<span>-</span>");
+$("b0").innerHTML=s.mode==="normal"?"打ち出し<br>1回転":s.mode==="kiryu"?"次へ":s.mode==="judge"?"LAST<br>JUDGE":s.mode==="jm"?"ジャッジ<br>メント":"フラグ<br>抽選";
+$("b0").disabled=busy;$("b1").disabled=$("b2").disabled=busy||s.mode!=="normal";
+$("b5").disabled=busy||s.mode==="normal";$("b4").disabled=busy;
+}
+async function auto(fn){busy=true;render();await fn();busy=false;render();}
+$("b0").onclick=()=>auto(async()=>{await pull();});
+$("b1").onclick=()=>auto(async()=>{for(let i=0;i<10&&S.mode==="normal";i++)step();});
+$("b2").onclick=()=>auto(async()=>{for(let i=0;i<5000&&S.mode==="normal";i++)step();});
+$("b5").onclick=()=>auto(async()=>{while(S.mode!=="normal"){await pull();render();}});
+$("b4").onclick=()=>init();
+const MD={none:"演出モード:なし(結果は抽選後にわかります)",enemy:"敵の攻撃(被弾)のときだけ、押した瞬間に赤く光って警告音が鳴ります",self:"味方の攻撃のときだけ、押した瞬間に青く光って音が鳴ります。一撃一掃は金色です",vibe:"味方の攻撃のときだけ、スマホが振動します(Androidのみ。iPhoneは非対応)"};
+document.querySelectorAll(".modes button").forEach(b=>b.onclick=()=>{cm=b.dataset.m;document.querySelectorAll(".modes button").forEach(x=>x.classList.toggle("on",x===b));$("mn").textContent=MD[cm];if(cm==="vibe"){try{navigator.vibrate&&navigator.vibrate(120);}catch(e){}}});
+$("b6").onclick=()=>{snd=!snd;$("b6").textContent=snd?"音 ON":"音 OFF";sfx("hit");};
+init();
+</script></body></html>
